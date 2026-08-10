@@ -1,288 +1,162 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+export type PriceChange = number | null | undefined;
 
 export interface MetalPriceItem {
   buy: number;
   sell: number;
-  buyChange?: number;
-  sellChange?: number;
+  buyChange?: PriceChange;
+  sellChange?: PriceChange;
+  hasPrevious?: boolean;
+}
+
+export interface ThaiGoldMeta {
+  date?: string;
+  announcementNo?: number | null;
+  announcedAt?: string;
+  ornamentBuy?: number;
+  ornamentSell?: number;
 }
 
 export interface MetalPriceBoardProps {
   gold?: MetalPriceItem;
   silver?: MetalPriceItem;
+  goldMeta?: ThaiGoldMeta;
+  silverUpdatedAt?: string;
   updatedAt?: string;
   loading?: boolean;
 }
 
 function formatBaht(value: number | undefined): string {
-  if (value === undefined || !Number.isFinite(value)) return "—";
-
-  return new Intl.NumberFormat("th-TH", {
-    maximumFractionDigits: 0,
-  }).format(value);
+  if (value === undefined || !Number.isFinite(value) || value <= 0) return "—";
+  return new Intl.NumberFormat("th-TH", { maximumFractionDigits: 0 }).format(Math.round(value));
 }
 
-const THAI_BAHT_WEIGHT_GRAMS = 15.244;
-const GRAMS_PER_KILOGRAM = 1000;
+function ChangeIndicator({ value, hasPrevious }: { value: PriceChange; hasPrevious?: boolean }) {
+  if (!hasPrevious || value === null || value === undefined || !Number.isFinite(value)) {
+    return <span className="board-change waiting">รอราคาก่อนหน้า</span>;
+  }
 
-function silverPerKilogramToPerBaht(value: number | undefined): number | undefined {
-  if (value === undefined || !Number.isFinite(value)) return undefined;
-  return value * (THAI_BAHT_WEIGHT_GRAMS / GRAMS_PER_KILOGRAM);
-}
-
-function ChangeIndicator({ value = 0 }: { value?: number }) {
-  if (!Number.isFinite(value) || value === 0) {
-    return (
-      <span className="change neutral" aria-label="ราคาไม่เปลี่ยนแปลง">
-        — 0 บาท
-      </span>
-    );
+  if (value === 0) {
+    return <span className="board-change unchanged" aria-label="ราคาไม่เปลี่ยนแปลง">• 0 บาท</span>;
   }
 
   const isUp = value > 0;
-  const amount = formatBaht(Math.abs(value));
-
   return (
     <span
-      className={`change ${isUp ? "positive" : "negative"}`}
-      aria-label={`${isUp ? "ราคาสูงขึ้น" : "ราคาลดลง"} ${amount} บาท`}
+      className={`board-change ${isUp ? "positive" : "negative"}`}
+      aria-label={`${isUp ? "ราคาปรับขึ้น" : "ราคาปรับลง"} ${formatBaht(Math.abs(value))} บาท`}
     >
-      {isUp ? "▲ +" : "▼ "}
-      {amount} บาท
+      <span aria-hidden="true">{isUp ? "▲" : "▼"}</span> {formatBaht(Math.abs(value))} บาท
     </span>
   );
+}
+
+function PriceColumn({
+  label,
+  value,
+  change,
+  hasPrevious,
+}: {
+  label: string;
+  value?: number;
+  change?: PriceChange;
+  hasPrevious?: boolean;
+}) {
+  return (
+    <div className="board-price-column">
+      <span className="board-price-label">{label}</span>
+      <strong className="board-price-value">{formatBaht(value)}</strong>
+      <ChangeIndicator value={change} hasPrevious={hasPrevious} />
+    </div>
+  );
+}
+
+function formatUpdatedAt(value?: string) {
+  if (!value) return "กำลังอัปเดต";
+  return new Date(value).toLocaleString("th-TH", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Bangkok",
+  });
 }
 
 export default function MetalPriceBoard({
   gold,
   silver,
+  goldMeta,
+  silverUpdatedAt,
   updatedAt,
   loading = false,
 }: MetalPriceBoardProps) {
-  const [goldFlash, setGoldFlash] = useState<"up" | "down" | null>(null);
-  const [silverFlash, setSilverFlash] =
-    useState<"up" | "down" | null>(null);
-
-  const previousGoldBuy = useRef<number | undefined>(undefined);
-  const previousSilverBuy = useRef<number | undefined>(undefined);
-
-  useEffect(() => {
-    const currentPrice = gold?.buy;
-    const previousPrice = previousGoldBuy.current;
-
-    if (currentPrice === undefined) return;
-
-    if (previousPrice !== undefined) {
-      if (currentPrice > previousPrice) {
-        setGoldFlash("up");
-      } else if (currentPrice < previousPrice) {
-        setGoldFlash("down");
-      } else {
-        setGoldFlash(null);
-      }
-    }
-
-    previousGoldBuy.current = currentPrice;
-
-    const timer = window.setTimeout(() => {
-      setGoldFlash(null);
-    }, 1200);
-
-    return () => window.clearTimeout(timer);
-  }, [gold?.buy]);
-
-  useEffect(() => {
-    const currentPrice = silver?.buy;
-    const previousPrice = previousSilverBuy.current;
-
-    if (currentPrice === undefined) return;
-
-    if (previousPrice !== undefined) {
-      if (currentPrice > previousPrice) {
-        setSilverFlash("up");
-      } else if (currentPrice < previousPrice) {
-        setSilverFlash("down");
-      } else {
-        setSilverFlash(null);
-      }
-    }
-
-    previousSilverBuy.current = currentPrice;
-
-    const timer = window.setTimeout(() => {
-      setSilverFlash(null);
-    }, 1200);
-
-    return () => window.clearTimeout(timer);
-  }, [silver?.buy]);
-
-  const formattedTime = updatedAt
-    ? new Date(updatedAt).toLocaleString("th-TH", {
-      hour: "2-digit",
-      minute: "2-digit",
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      timeZone: "Asia/Bangkok",
-    })
-    : null;
-
-  if (loading || (!gold && !silver)) {
-    return (
-      <section
-        className="metal-price-board-container"
-        id="price-board"
-        aria-busy="true"
-        aria-label="กำลังโหลดราคาทองและเงินแท่ง"
-      >
-        <div className="board-header-row">
-          <div className="board-title-group">
-            <span className="live-status-pill">
-              <span className="pulse-dot" aria-hidden="true" />
-              LIVE
-            </span>
-
-            <h1 className="board-title">
-              ราคาทองและเงินแท่ง (บาทละ) วันนี้
-            </h1>
-          </div>
-
-          <div
-            className="board-timestamp skeleton-box"
-            style={{ width: 160, height: 24 }}
-            aria-hidden="true"
-          />
-        </div>
-
-        <div className="metal-price-grid">
-          {[0, 1].map((item) => (
-            <div
-              className="metal-card skeleton-card"
-              key={item}
-              aria-hidden="true"
-            >
-              <div
-                className="skeleton-line"
-                style={{ width: "50%", height: 24 }}
-              />
-              <div
-                className="skeleton-line"
-                style={{ width: "100%", height: 40, margin: "14px 0" }}
-              />
-              <div
-                className="skeleton-line"
-                style={{ width: "100%", height: 40 }}
-              />
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  const goldBuyChange = gold?.buyChange ?? 0;
-  const goldSellChange = gold?.sellChange ?? goldBuyChange;
-  const silverBuyPerBaht = silverPerKilogramToPerBaht(silver?.buy);
-  const silverSellPerBaht = silverPerKilogramToPerBaht(silver?.sell);
-
-  const silverBuyChangePerBaht = silverPerKilogramToPerBaht(silver?.buyChange) ?? 0;
-
-  const silverSellChangePerBaht = silverPerKilogramToPerBaht(silver?.sellChange ?? silver?.buyChange) ?? 0;
-  const silverSellChange = silver?.sellChange ?? silverBuyChange;
-
   return (
-    <section
-      className="metal-price-board-container"
-      id="price-board"
-      aria-label="ตารางราคาทองและเงินแท่ง"
-    >
-      <div className="board-header-row">
-        <div className="board-title-group">
-          <span className="live-status-pill">
-            <span className="pulse-dot" aria-hidden="true" />
-            LIVE
-          </span>
-
-          <h1 className="board-title">
-            ราคาทองและเงินแท่ง (บาทละ) วันนี้
-          </h1>
-
-          <p className="board-description">
-            ราคารับซื้อ / ขายออก พร้อมส่วนต่างจากราคาก่อนหน้า
-          </p>
+    <section className="metal-price-board-container" id="price-board" aria-label="Price Board ราคาทองและเงินแท่งวันนี้">
+      <header className="board-header-row">
+        <div>
+          <p className="board-kicker">PRICE BOARD · LIVE PRECIOUS METALS</p>
+          <h1 className="board-title">Price Board ราคาทองและเงินแท่ง <span>(บาทละ)</span> วันนี้</h1>
+          <p className="board-description">ราคาอ้างอิงจริง รับซื้อ–ขายออก และผลต่างจากข้อมูลก่อนหน้า</p>
         </div>
+        <div className="board-live-block" role="status">
+          <span className={`live-status-pill ${loading ? "loading" : ""}`}><i />{loading ? "CONNECTING" : "LIVE"}</span>
+          <small>อัปเดตล่าสุด</small>
+          <strong>{formatUpdatedAt(updatedAt)} น.</strong>
+        </div>
+      </header>
 
-        {formattedTime && (
-          <div className="board-timestamp" role="status">
-            <span>อัปเดตล่าสุด</span>
-            <strong>{formattedTime} น.</strong>
-          </div>
-        )}
-      </div>
-
-      <div className="metal-price-grid">
-        <article
-          className={`metal-card metal-card-gold ${goldFlash ? `flash-${goldFlash}` : ""
-            }`}
-        >
-          <div className="metal-heading">
-            <h2>🟡 ทองคำแท่ง 96.5%</h2>
-            <span className="unit-badge">บาทละ</span>
+      <div className="metal-price-grid" aria-busy={loading}>
+        <article className="metal-card" data-metal="gold">
+          <div className="metal-card-head">
+            <span className="metal-ingot-icon gold" aria-hidden="true">Au</span>
+            <div>
+              <h2>ทองคำแท่ง 96.5%</h2>
+              <p>อ้างอิงสมาคมค้าทองคำไทย · บาทละ</p>
+            </div>
           </div>
 
-          <div className="price-rows">
-            <div className="price-row">
-              <span className="row-label">รับซื้อ</span>
-              <strong className="row-price">
-                {formatBaht(gold?.buy)}
-              </strong>
-              <ChangeIndicator value={goldBuyChange} />
-            </div>
+          <div className="board-price-pair">
+            <PriceColumn label="รับซื้อ" value={gold?.buy} change={gold?.buyChange} hasPrevious={gold?.hasPrevious} />
+            <PriceColumn label="ขายออก" value={gold?.sell} change={gold?.sellChange} hasPrevious={gold?.hasPrevious} />
+          </div>
 
-            <div className="price-divider-h" aria-hidden="true" />
+          <div className="gold-announcement">
+            <span><small>วันที่ประกาศ</small><b>{goldMeta?.date || "รอข้อมูล"}</b></span>
+            <span><small>ประกาศล่าสุด</small><b>{goldMeta?.announcementNo ? `ครั้งที่ ${goldMeta.announcementNo}` : "รอข้อมูล"}</b></span>
+            <span className="announcement-time"><small>เวลา</small><b>{goldMeta?.announcedAt || "รอข้อมูล"}</b></span>
+          </div>
 
-            <div className="price-row">
-              <span className="row-label">ขายออก</span>
-              <strong className="row-price">
-                {formatBaht(gold?.sell)}
-              </strong>
-              <ChangeIndicator value={goldSellChange} />
-            </div>
+          <div className="ornament-row">
+            <span>ทองรูปพรรณ</span>
+            <span><small>รับซื้อ</small><b>{formatBaht(goldMeta?.ornamentBuy)}</b></span>
+            <span><small>ขายออก</small><b>{formatBaht(goldMeta?.ornamentSell)}</b></span>
           </div>
         </article>
 
-        <article
-          className={`metal-card metal-card-silver ${silverFlash ? `flash-${silverFlash}` : ""
-            }`}
-        >
-          <div className="metal-heading">
-            <h2>⚪ เงินแท่ง 99.99%</h2>
-            <span className="unit-badge">บาทละ</span>
-          </div>
-
-          <div className="price-rows">
-            <div className="price-row">
-              <span className="row-label">รับซื้อ</span>
-              <strong className="row-price">
-                {formatBaht(silverBuyPerBaht)}
-              </strong>
-              <ChangeIndicator value={silverBuyChangePerBaht} />
-            </div>
-
-            <div className="price-divider-h" aria-hidden="true" />
-
-            <div className="price-row">
-              <span className="row-label">ขายออก</span>
-              <strong className="row-price">
-                {formatBaht(silverSellPerBaht)}
-              </strong>
-              <ChangeIndicator value={silverSellChangePerBaht} />
+        <article className="metal-card" data-metal="silver">
+          <div className="metal-card-head">
+            <span className="metal-ingot-icon silver" aria-hidden="true">Ag</span>
+            <div>
+              <h2>เงินแท่ง 99.99%</h2>
+              <p>อ้างอิง Silver Spot · บาทละ</p>
             </div>
           </div>
+
+          <div className="board-price-pair">
+            <PriceColumn label="รับซื้อ" value={silver?.buy} change={silver?.buyChange} hasPrevious={silver?.hasPrevious} />
+            <PriceColumn label="ขายออก" value={silver?.sell} change={silver?.sellChange} hasPrevious={silver?.hasPrevious} />
+          </div>
+
+          <div className="silver-live-row">
+            <span><i /> LIVE · อัปเดตวันละ 1 ครั้ง</span>
+            <b>{formatUpdatedAt(silverUpdatedAt)} น.</b>
+          </div>
+          <p className="board-source-note">ระบบจะแสดงทิศทางเมื่อมีราคาจริงก่อนหน้าเท่านั้น และไม่สร้างตัวเลขจำลอง</p>
         </article>
       </div>
     </section>
   );
 }
+

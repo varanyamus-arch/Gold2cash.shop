@@ -1,35 +1,57 @@
-const UPSTREAM = "https://gold22cash.vercel.app/api/market";
+type Snapshot = {
+  isDemo?: boolean;
+  source?: string;
+  metals?: Array<{
+    symbol?: "XAU" | "XAG";
+    priceUsd?: number;
+    changePercent?: number;
+  }>;
+};
+
+function validPrice(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function formatUsd(value: number) {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
+}
 
 export async function POST(request: Request) {
   try {
-    const snapshot = await request.json() as { isDemo?: boolean; source?: string };
+    const snapshot = await request.json() as Snapshot;
     if (snapshot.isDemo || snapshot.source?.toLowerCase() !== "goldapi") {
       return Response.json({
-        analysis: ["ยังไม่สร้างบทวิเคราะห์", "ระบบกำลังรอราคาจริงล่าสุดจาก GoldAPI"],
+        analysis: ["ยังไม่สร้างบทวิเคราะห์", "ระบบกำลังรอราคาจริงจาก GoldAPI"],
         source: "unavailable",
       }, { status: 503, headers: { "cache-control": "no-store" } });
     }
-    const response = await fetch(UPSTREAM, { cache: "no-store" });
-    if (!response.ok) throw new Error(`Analysis upstream returned ${response.status}`);
-    const payload = await response.json() as {
-      analyses?: Partial<Record<"XAU" | "XAG", { summary?: string; strategy?: string; model?: string }>>;
-    };
-    const gold = payload.analyses?.XAU;
-    const silver = payload.analyses?.XAG;
-    const analysis = [
-      gold?.summary,
-      gold?.strategy ? `กลยุทธ์ทอง: ${gold.strategy}` : undefined,
-      silver?.summary ? `Silver Spot: ${silver.summary}` : undefined,
-    ].filter((item): item is string => Boolean(item));
-    if (!analysis.length) throw new Error("Analysis payload is empty");
+
+    const gold = snapshot.metals?.find((item) => item.symbol === "XAU");
+    const silver = snapshot.metals?.find((item) => item.symbol === "XAG");
+    if (!validPrice(gold?.priceUsd) || !validPrice(silver?.priceUsd)) {
+      return Response.json({
+        analysis: ["ยังไม่สร้างบทวิเคราะห์", "ข้อมูลราคาจริงไม่ครบ จึงไม่ใช้ค่า 0 หรือข้อมูลจำลองแทน"],
+        source: "unavailable",
+      }, { status: 503, headers: { "cache-control": "no-store" } });
+    }
+
+    const goldDirection = (gold.changePercent ?? 0) > 0 ? "ปรับขึ้น" : (gold.changePercent ?? 0) < 0 ? "ปรับลง" : "ทรงตัว";
+    const silverDirection = (silver.changePercent ?? 0) > 0 ? "ปรับขึ้น" : (silver.changePercent ?? 0) < 0 ? "ปรับลง" : "ทรงตัว";
+
     return Response.json({
-      analysis,
-      source: gold?.model === "openai" || silver?.model === "openai" ? "openai" : "deterministic",
+      analysis: [
+        `Gold Spot ${goldDirection} ที่ประมาณ $${formatUsd(gold.priceUsd)}`,
+        `Silver Spot ${silverDirection} ที่ประมาณ $${formatUsd(silver.priceUsd)}`,
+        "รายงาน OI, Volatility และ MACD จะสร้างเมื่อผู้ใช้กรอกข้อมูลจริงใน Gold2Cash Trade Diary",
+      ],
+      source: "deterministic",
     }, { headers: { "cache-control": "no-store" } });
-  } catch {
+  } catch (error) {
+    console.error("Analysis API error", error);
     return Response.json({
       analysis: ["ระบบวิเคราะห์ไม่พร้อมใช้งานชั่วคราว", "กรุณาตรวจสอบราคาตลาดล่าสุดก่อนตัดสินใจ"],
-      source: "deterministic",
-    }, { status: 503 });
+      source: "unavailable",
+    }, { status: 503, headers: { "cache-control": "no-store" } });
   }
 }
+

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import MetalPriceBoard from "../components/MetalPriceBoard";
+import TradeDiary from "../components/TradeDiary";
 
 
 
@@ -22,6 +23,31 @@ type MarketSnapshot = {
   source: string;
   isDemo: boolean;
   updatedAt: string;
+  thaiGold: {
+    signature: string;
+    date: string;
+    announcementNo: number | null;
+    announcedAt: string;
+    recordedAt: string;
+    hasPrevious: boolean;
+    goldBar: {
+      buy: number;
+      sell: number;
+      buyChange: number | null;
+      sellChange: number | null;
+    };
+    ornament: { buy: number; sell: number };
+  };
+  silverBar: {
+    signature: string;
+    date: string;
+    recordedAt: string;
+    hasPrevious: boolean;
+    buy: number;
+    sell: number;
+    buyChange: number | null;
+    sellChange: number | null;
+  };
 };
 type HistoryRow = {
   symbol: MetalSymbol;
@@ -293,20 +319,28 @@ export default function Home() {
       </header>
 
       <MetalPriceBoard
-        gold={{
-          buy: goldBaht > 0 ? Math.round(goldBaht * 0.985) : 0,
-          sell: Math.round(goldBaht),
-          buyChange: goldChange,
-          sellChange: goldChange,
-          spotUsd: goldPrice,
-        }}
-        silver={{
-          buy: rates.silver > 0 ? Math.round(rates.silver * 1000 * 0.985) : 0,
-          sell: Math.round(rates.silver * 1000),
-          buyChange: silverChange,
-          sellChange: silverChange,
-          spotUsd: silverPrice,
-        }}
+        gold={market ? {
+          buy: market.thaiGold.goldBar.buy,
+          sell: market.thaiGold.goldBar.sell,
+          buyChange: market.thaiGold.goldBar.buyChange,
+          sellChange: market.thaiGold.goldBar.sellChange,
+          hasPrevious: market.thaiGold.hasPrevious,
+        } : undefined}
+        silver={market ? {
+          buy: market.silverBar.buy,
+          sell: market.silverBar.sell,
+          buyChange: market.silverBar.buyChange,
+          sellChange: market.silverBar.sellChange,
+          hasPrevious: market.silverBar.hasPrevious,
+        } : undefined}
+        goldMeta={market ? {
+          date: market.thaiGold.date,
+          announcementNo: market.thaiGold.announcementNo,
+          announcedAt: market.thaiGold.announcedAt,
+          ornamentBuy: market.thaiGold.ornament.buy,
+          ornamentSell: market.thaiGold.ornament.sell,
+        } : undefined}
+        silverUpdatedAt={market?.silverBar.recordedAt}
         updatedAt={market?.updatedAt}
         loading={!market && !priceError}
       />
@@ -426,6 +460,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <TradeDiary currentPrice={goldPrice || undefined} />
 
       <section className="calculator-wrap" id="calculator">
         <div className="calculator-copy"><p className="eyebrow">PRICE CALCULATOR</p><h2>คำนวณราคารับซื้อ<br />เงินหลอม / ทองหลอม</h2><p>ประเมินจากราคามาตรฐาน น้ำหนัก และเปอร์เซ็นต์ความบริสุทธิ์ โดยไม่มีค่าตรวจเช็กสินค้า ราคาสุดท้ายยืนยันตามน้ำหนักและผลตรวจความบริสุทธิ์ที่หน้างาน</p></div>
