@@ -582,7 +582,7 @@ p { text-wrap:pretty; }
 .source-toggle button.active { background: #d6b24f; color: #112e27; }
 .trade-form label { display: block; margin-top: 14px; color: #a9bbb4; font-size: 11px; }
 .trade-form input,
-.trade-form select { width: 100%; margin-top: 7px; padding: 13px 12px; border: 1px solid rgba(255,255,255,.13); border-radius: 6px; background: #0b241d; color: #fff; font: 600 14px inherit; outline: none; }
+.trade-form select { width: 100%; margin-top: 7px; padding: 13px 12px; border: 1px solid rgba(255,255,255,.13); border-radius: 6px; background: #0b241d; color: #fff; font-family: inherit; font-size: 14px; font-weight: 600; outline: none; }
 .trade-form input:focus,
 .trade-form select:focus { border-color: #d6b24f; box-shadow: 0 0 0 3px rgba(214,178,79,.1); }
 .trade-field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -624,4 +624,3 @@ p { text-wrap:pretty; }
   .trade-report article { grid-template-columns: 1fr; }
   .trade-report article span { grid-row: auto; }
 }
-

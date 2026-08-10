@@ -52,8 +52,12 @@ export async function GET() {
     const previousGold = goldRows[1];
     const currentSilver = silverRows[0];
     const previousSilver = silverRows[1];
-    const latestGoldSpot = spotRows.find((row) => row.symbol === "XAU");
-    const latestSilverSpot = spotRows.find((row) => row.symbol === "XAG");
+    const goldSpots = spotRows.filter((row) => row.symbol === "XAU");
+    const silverSpots = spotRows.filter((row) => row.symbol === "XAG");
+    const latestGoldSpot = goldSpots[0];
+    const latestSilverSpot = silverSpots[0];
+    const previousGoldSpot = goldSpots[1];
+    const previousSilverSpot = silverSpots[1];
 
     if (!currentGold || !currentSilver || !latestGoldSpot || !latestSilverSpot) {
       return Response.json(
@@ -74,14 +78,20 @@ export async function GET() {
           name: "Gold Spot",
           priceUsd: finiteNumber(latestGoldSpot.price_usd),
           priceThbPerGram: finiteNumber(latestGoldSpot.price_thb_per_gram),
-          changePercent: 0,
+          changePercent: previousGoldSpot
+            ? ((finiteNumber(latestGoldSpot.price_usd) - finiteNumber(previousGoldSpot.price_usd))
+              / finiteNumber(previousGoldSpot.price_usd)) * 100
+            : 0,
         },
         {
           symbol: "XAG",
           name: "Silver Spot",
           priceUsd: finiteNumber(latestSilverSpot.price_usd),
           priceThbPerGram: finiteNumber(latestSilverSpot.price_thb_per_gram),
-          changePercent: 0,
+          changePercent: previousSilverSpot
+            ? ((finiteNumber(latestSilverSpot.price_usd) - finiteNumber(previousSilverSpot.price_usd))
+              / finiteNumber(previousSilverSpot.price_usd)) * 100
+            : 0,
         },
       ],
       usdThb,
@@ -133,4 +143,3 @@ export async function GET() {
     );
   }
 }
-

@@ -303,6 +303,7 @@ export default function Home() {
         <nav aria-label="เมนูหลัก">
           <a href="#prices" onClick={() => setMenuOpen(false)}>ตารางราคา</a>
           <a href="#calculator" onClick={() => setMenuOpen(false)}>คำนวณราคา</a>
+          <a href="#trade-diary" onClick={() => setMenuOpen(false)}>Trade Diary</a>
           <a href="#analysis" onClick={() => setMenuOpen(false)}>บทวิเคราะห์</a>
           <a href="#history" onClick={() => setMenuOpen(false)}>กราฟเทรด</a>
         </nav>
@@ -450,7 +451,7 @@ export default function Home() {
           <div><i className="status-dot" /><span><small>สถานะรายงาน</small><b>ระบบวิเคราะห์พร้อมใช้งาน</b></span></div>
           <div><small>ข้อมูลราคา</small><b>{!market ? "กำลังเชื่อมต่อ" : market.isDemo ? "ข้อมูลสำรอง" : "GoldAPI ราคาจริง"}</b></div>
           <div><small>AI Analysis</small><b>{analysisSource}</b></div>
-          <div><small>การบันทึกราคา</small><b>ทุก 15 นาที</b></div>
+          <div><small>การบันทึกราคา</small><b>ทุก 1 นาที</b></div>
         </div>
         <div className="report-history">
           <div className="report-history-head"><div><p className="eyebrow">PRICE RECORDS</p><h3>ข้อมูลราคาที่บันทึกล่าสุด</h3></div><span>ข้อมูลจาก Supabase</span></div>
