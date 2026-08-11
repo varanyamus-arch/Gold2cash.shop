@@ -5,9 +5,6 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://gold2cash.shop"),
   title: "ทองแลกเงิน Gold2Cash | ราคาทองและเม็ดเงินวันนี้",
   description: "เช็กราคา Gold Spot, Silver Spot ราคาทองและเม็ดเงิน รับซื้อทองหลอม เงินหลอม พร้อมบทวิเคราะห์และเครื่องคำนวณราคา",
-  other: {
-    "codex-preview": "development",
-  },
   icons: {
     icon: "/gold2cash-logo.jpg",
     shortcut: "/gold2cash-logo.jpg",

@@ -33,7 +33,7 @@ type SpotRow = {
 export async function GET() {
   try {
     const timeout = AbortSignal.timeout(10_000);
-    const [goldRows, silverRows, spotRows] = await Promise.all([
+    const [goldRows, silverRows, goldSpots, silverSpots] = await Promise.all([
       readSupabase<GoldAnnouncement[]>(
         "thai_gold_announcements?select=signature,source_date,announcement_no,announced_at,gold_bar_buy,gold_bar_sell,ornament_buy,ornament_sell,recorded_at&order=recorded_at.desc&limit=2",
         { signal: timeout },
@@ -43,7 +43,11 @@ export async function GET() {
         { signal: timeout },
       ),
       readSupabase<SpotRow[]>(
-        "price_history?select=symbol,price_usd,price_thb_per_gram,usd_thb,recorded_at&is_demo=eq.false&source=eq.goldapi&order=recorded_at.desc&limit=240",
+        "price_history?select=symbol,price_usd,price_thb_per_gram,usd_thb,recorded_at&symbol=eq.XAU&is_demo=eq.false&source=eq.goldapi&order=recorded_at.desc&limit=2",
+        { signal: timeout },
+      ),
+      readSupabase<SpotRow[]>(
+        "price_history?select=symbol,price_usd,price_thb_per_gram,usd_thb,recorded_at&symbol=eq.XAG&is_demo=eq.false&source=eq.goldapi&order=recorded_at.desc&limit=2",
         { signal: timeout },
       ),
     ]);
@@ -52,8 +56,6 @@ export async function GET() {
     const previousGold = goldRows[1];
     const currentSilver = silverRows[0];
     const previousSilver = silverRows[1];
-    const goldSpots = spotRows.filter((row) => row.symbol === "XAU");
-    const silverSpots = spotRows.filter((row) => row.symbol === "XAG");
     const latestGoldSpot = goldSpots[0];
     const latestSilverSpot = silverSpots[0];
     const previousGoldSpot = goldSpots[1];

@@ -624,3 +624,18 @@ p { text-wrap:pretty; }
   .trade-report article { grid-template-columns: 1fr; }
   .trade-report article span { grid-row: auto; }
 }
+
+/* Final pre-deploy overflow guards */
+.spot-chart-frame iframe,
+.tradingview-widget-container > div { max-width: 100% !important; }
+.history-card,
+.chart { min-width: 0; overflow: hidden; }
+
+@media (max-width: 600px) {
+  .spot-chart-shell { width: 100%; }
+  .spot-chart-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .spot-chart-tabs button { min-width: 0; justify-content: center; padding: 10px 6px; font-size: 10px; line-height: 1.35; text-align: center; }
+  .spot-chart-frame { height: 420px; min-height: 360px; }
+  .history-heading { align-items: flex-start; flex-direction: column; gap: 14px; }
+  .range-buttons { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
