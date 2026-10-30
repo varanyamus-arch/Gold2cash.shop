@@ -25,6 +25,8 @@ export interface MetalPriceBoardProps {
   silverUpdatedAt?: string;
   updatedAt?: string;
   loading?: boolean;
+  stale?: boolean;
+  unavailable?: boolean;
 }
 
 function formatBaht(value: number | undefined): string {
@@ -91,7 +93,11 @@ export default function MetalPriceBoard({
   silverUpdatedAt,
   updatedAt,
   loading = false,
+  stale = false,
+  unavailable = false,
 }: MetalPriceBoardProps) {
+  const statusLabel = unavailable ? "กำลังเชื่อมต่อ" : stale ? "ข้อมูลล่าสุด" : loading ? "CONNECTING" : "LIVE";
+  const statusClass = unavailable ? "offline" : stale ? "stale" : loading ? "loading" : "";
   return (
     <section className="metal-price-board-container" id="price-board" aria-label="Price Board ราคาทองและเงินแท่งวันนี้">
       <header className="board-header-row">
@@ -101,7 +107,7 @@ export default function MetalPriceBoard({
           <p className="board-description">ราคาอ้างอิงจริง รับซื้อ–ขายออก และผลต่างจากข้อมูลก่อนหน้า</p>
         </div>
         <div className="board-live-block" role="status">
-          <span className={`live-status-pill ${loading ? "loading" : ""}`}><i />{loading ? "CONNECTING" : "LIVE"}</span>
+          <span className={`live-status-pill ${statusClass}`}><i />{statusLabel}</span>
           <small>อัปเดตล่าสุด</small>
           <strong>{formatUpdatedAt(updatedAt)} น.</strong>
         </div>

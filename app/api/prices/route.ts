@@ -30,9 +30,20 @@ type SpotRow = {
   recorded_at: string;
 };
 
+const PRICE_CACHE_HEADERS = {
+  "cache-control": "public, s-maxage=45, stale-while-revalidate=300, stale-if-error=86400",
+};
+
+function percentChange(current: unknown, previous: unknown): number {
+  const currentValue = finiteNumber(current);
+  const previousValue = finiteNumber(previous);
+  if (currentValue <= 0 || previousValue <= 0) return 0;
+  return ((currentValue - previousValue) / previousValue) * 100;
+}
+
 export async function GET() {
   try {
-    const timeout = AbortSignal.timeout(10_000);
+    const timeout = AbortSignal.timeout(12_000);
     const [goldRows, silverRows, goldSpots, silverSpots] = await Promise.all([
       readSupabase<GoldAnnouncement[]>(
         "thai_gold_announcements?select=signature,source_date,announcement_no,announced_at,gold_bar_buy,gold_bar_sell,ornament_buy,ornament_sell,recorded_at&order=recorded_at.desc&limit=2",
@@ -69,7 +80,12 @@ export async function GET() {
     }
 
     const usdThb = finiteNumber(latestGoldSpot.usd_thb || currentSilver.usd_thb);
-    const updatedAt = [currentGold.recorded_at, currentSilver.recorded_at, latestGoldSpot.recorded_at]
+    const updatedAt = [
+      currentGold.recorded_at,
+      currentSilver.recorded_at,
+      latestGoldSpot.recorded_at,
+      latestSilverSpot.recorded_at,
+    ]
       .sort()
       .at(-1) ?? currentGold.recorded_at;
 
@@ -81,8 +97,7 @@ export async function GET() {
           priceUsd: finiteNumber(latestGoldSpot.price_usd),
           priceThbPerGram: finiteNumber(latestGoldSpot.price_thb_per_gram),
           changePercent: previousGoldSpot
-            ? ((finiteNumber(latestGoldSpot.price_usd) - finiteNumber(previousGoldSpot.price_usd))
-              / finiteNumber(previousGoldSpot.price_usd)) * 100
+            ? percentChange(latestGoldSpot.price_usd, previousGoldSpot.price_usd)
             : 0,
         },
         {
@@ -91,8 +106,7 @@ export async function GET() {
           priceUsd: finiteNumber(latestSilverSpot.price_usd),
           priceThbPerGram: finiteNumber(latestSilverSpot.price_thb_per_gram),
           changePercent: previousSilverSpot
-            ? ((finiteNumber(latestSilverSpot.price_usd) - finiteNumber(previousSilverSpot.price_usd))
-              / finiteNumber(previousSilverSpot.price_usd)) * 100
+            ? percentChange(latestSilverSpot.price_usd, previousSilverSpot.price_usd)
             : 0,
         },
       ],
@@ -136,7 +150,7 @@ export async function GET() {
           ? finiteNumber(currentSilver.sell_price) - finiteNumber(previousSilver.sell_price)
           : null,
       },
-    }, { headers: { "cache-control": "no-store" } });
+    }, { headers: PRICE_CACHE_HEADERS });
   } catch (error) {
     console.error("Price API error", error);
     return Response.json(

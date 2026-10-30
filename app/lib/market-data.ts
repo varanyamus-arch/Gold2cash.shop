@@ -15,7 +15,10 @@ export async function readSupabase<T>(path: string, options: SupabaseOptions = {
       Authorization: `Bearer ${SUPABASE_KEY}`,
       Accept: "application/json",
     },
-    cache: "no-store",
+    // Keep the last successful database response briefly. The public price API
+    // is polled frequently, so forcing four uncached Supabase requests for every
+    // visitor makes a transient slow response look like a full outage.
+    next: { revalidate: 45 },
     signal: options.signal,
   });
 

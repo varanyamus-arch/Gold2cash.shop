@@ -60,6 +60,28 @@ type HistoryRow = {
 
 const defaultPurity = { silver: "99.99", gold: "96.5" };
 const lineOaUrl = "https://lin.ee/sgjgisa";
+const marketCacheKey = "gold2cash:last-market-snapshot";
+
+function isValidMarketSnapshot(value: unknown): value is MarketSnapshot {
+  if (!value || typeof value !== "object") return false;
+  const snapshot = value as Partial<MarketSnapshot>;
+  return snapshot.isDemo === false
+    && snapshot.source?.toLowerCase() === "goldapi"
+    && Array.isArray(snapshot.metals)
+    && snapshot.metals.length >= 2
+    && snapshot.metals.every((item) =>
+      Number.isFinite(item.priceUsd)
+      && item.priceUsd > 0
+      && Number.isFinite(item.priceThbPerGram)
+      && item.priceThbPerGram > 0
+    )
+    && Boolean(snapshot.thaiGold?.goldBar?.sell)
+    && Boolean(snapshot.silverBar?.sell);
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
 
 function LineChart({ values, color, unit }: { values: number[]; color: string; unit: string }) {
   if (values.length === 0) {
@@ -222,52 +244,85 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
+    let lastSuccessfulMarket: MarketSnapshot | null = null;
+
+    try {
+      const cached = window.localStorage.getItem(marketCacheKey);
+      if (cached) {
+        const snapshot = JSON.parse(cached) as unknown;
+        if (isValidMarketSnapshot(snapshot)) {
+          lastSuccessfulMarket = snapshot;
+          window.setTimeout(() => {
+            if (!cancelled) {
+              setMarket(snapshot);
+              setPriceError("กำลังตรวจสอบราคาล่าสุด");
+            }
+          }, 0);
+        }
+      }
+    } catch {
+      // Private browsing or a disabled localStorage must not block live fetches.
+    }
+
     const loadPrices = async () => {
-      try {
-        const response = await fetch(`/api/prices?t=${Date.now()}`, { cache: "no-store" });
-        if (!response.ok) throw new Error("price request failed");
-        const snapshot = await response.json() as MarketSnapshot;
-        if (
-          snapshot.isDemo
-          || snapshot.source?.toLowerCase() !== "goldapi"
-          || !snapshot.metals?.length
-          || snapshot.metals.some((item) => !Number.isFinite(item.priceUsd) || item.priceUsd <= 0)
-        ) {
-          throw new Error("invalid market snapshot");
-        }
-        if (cancelled) return;
-        setMarket(snapshot);
-        setPriceError("");
+      let finalError: unknown;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
-          const analysisResponse = await fetch("/api/ai-analysis", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(snapshot),
+          const response = await fetch("/api/prices", {
+            cache: "default",
+            signal: AbortSignal.timeout(15_000),
           });
-          if (!analysisResponse.ok) throw new Error("analysis request failed");
-          const data = await analysisResponse.json() as { analysis?: string[]; source?: string };
-          if (!cancelled) {
-            setAnalysis(data.analysis ?? []);
-            setAnalysisSource(data.source === "openai" ? "OpenAI" : "ระบบวิเคราะห์สำรอง");
+          if (!response.ok) throw new Error(`price request failed (${response.status})`);
+          const snapshot = await response.json() as unknown;
+          if (!isValidMarketSnapshot(snapshot)) throw new Error("invalid market snapshot");
+          if (cancelled) return;
+          lastSuccessfulMarket = snapshot;
+          setMarket(snapshot);
+          setPriceError("");
+          try {
+            window.localStorage.setItem(marketCacheKey, JSON.stringify(snapshot));
+          } catch {
+            // A disabled/full localStorage must never stop live prices rendering.
           }
-        } catch {
-          if (!cancelled) {
-            setAnalysis(["บทวิเคราะห์อัตโนมัติไม่พร้อมใช้งานชั่วคราว", "โปรดอ้างอิงราคาจริงและกราฟตลาดล่าสุด"]);
-            setAnalysisSource("ไม่พร้อมใช้งาน");
+          try {
+            const analysisResponse = await fetch("/api/ai-analysis", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(snapshot),
+            });
+            if (!analysisResponse.ok) throw new Error("analysis request failed");
+            const data = await analysisResponse.json() as { analysis?: string[]; source?: string };
+            if (!cancelled) {
+              setAnalysis(data.analysis ?? []);
+              setAnalysisSource(data.source === "openai" ? "OpenAI" : "ระบบวิเคราะห์สำรอง");
+            }
+          } catch {
+            if (!cancelled) {
+              setAnalysis(["บทวิเคราะห์อัตโนมัติไม่พร้อมใช้งานชั่วคราว", "โปรดอ้างอิงราคาจริงและกราฟตลาดล่าสุด"]);
+              setAnalysisSource("ไม่พร้อมใช้งาน");
+            }
           }
+          return;
+        } catch (error) {
+          finalError = error;
+          if (attempt < 2) await wait(700 * (attempt + 1));
         }
-      } catch {
-        if (!cancelled) {
-          setMarket(null);
+      }
+      console.warn("Live price refresh failed", finalError);
+      if (!cancelled) {
+        if (lastSuccessfulMarket) {
+          setMarket(lastSuccessfulMarket);
+          setPriceError("กำลังใช้ราคาล่าสุดที่ตรวจสอบแล้ว");
+        } else {
           setAnalysis([]);
-          setPriceError("ราคาจริง GoldAPI ไม่พร้อมใช้งาน");
+          setPriceError("กำลังเชื่อมต่อข้อมูลราคาอีกครั้ง");
           setAnalysisSource("รอราคาจริง");
         }
       }
     };
     const loadHistory = async () => {
       try {
-        const response = await fetch(`/api/history?limit=96&t=${Date.now()}`, { cache: "no-store" });
+        const response = await fetch("/api/history?limit=96", { cache: "default" });
         if (!response.ok) throw new Error("history request failed");
         const data = await response.json() as { data?: HistoryRow[] };
         if (!cancelled) {
@@ -344,11 +399,13 @@ export default function Home() {
         silverUpdatedAt={market?.silverBar.recordedAt}
         updatedAt={market?.updatedAt}
         loading={!market && !priceError}
+        stale={Boolean(market && priceError)}
+        unavailable={Boolean(!market && priceError)}
       />
 
       <section className="hero" id="top">
         <div className="hero-copy">
-          <div className={`live-pill ${priceError ? "offline" : ""}`}><i /> {priceError || (isLive ? "LIVE DATA · ราคาจริงจาก GoldAPI" : "กำลังตรวจสอบข้อมูลตลาด")}</div>
+          <div className={`live-pill ${priceError && !market ? "offline" : priceError ? "delayed" : ""}`}><i /> {priceError || (isLive ? "LIVE DATA · ราคาจริงจาก GoldAPI" : "กำลังตรวจสอบข้อมูลตลาด")}</div>
           <p className="eyebrow">ซื้อ–ขายทองและเม็ดเงินอย่างมั่นใจ</p>
           <h1>เช็กราคาชัดเจน<br />ตัดสินใจได้ <em>ทันตลาด</em></h1>
           <p className="lead">ดู Gold Spot และ Silver Spot พร้อมราคาอ้างอิงในไทย บทวิเคราะห์รายวัน และเครื่องคำนวณราคารับซื้อในที่เดียว</p>

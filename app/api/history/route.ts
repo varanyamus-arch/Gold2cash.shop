@@ -32,7 +32,11 @@ export async function GET(request: Request) {
         price_usd: Number(row.price_usd),
         price_thb_per_gram: Number(row.price_thb_per_gram),
       })),
-    }, { headers: { "cache-control": "no-store" } });
+    }, {
+      headers: {
+        "cache-control": "public, s-maxage=45, stale-while-revalidate=300, stale-if-error=86400",
+      },
+    });
   } catch (error) {
     console.error("History API error", error);
     return Response.json(
